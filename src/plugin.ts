@@ -1,4 +1,3 @@
-// src/plugin.ts
 import type { Penpot } from '@penpot/plugin-types';
 
 declare const penpot: Penpot;
@@ -32,72 +31,47 @@ penpot.ui.open("AI Plugin", "", {
 
 // Configurar el listener para mensajes de Penpot
 window.addEventListener("message", async (event) => {
-  try {
-    const message = event.data;
-    console.log('Mensaje recibido de Penpot:', message);
-    
-    // Manejar diferentes tipos de mensajes
-    switch (message.type) {
-      case 'init':
-        // Verificar si tenemos los datos necesarios
-        const foundations = localStorage.getItem('foundations');
-        const apiKey = localStorage.getItem('openai_api_key');
-        
-        if (!foundations) {
-          parent.postMessage({
-            type: 'requestFoundations',
-            data: 'Por favor, sube el archivo de foundations'
-          }, '*');
-        } else if (!apiKey) {
-          parent.postMessage({
-            type: 'requestApiKey',
-            data: 'Por favor, ingresa tu API Key de OpenAI'
-          }, '*');
-        } else {
-          parent.postMessage({
-            type: 'ready',
-            data: 'Plugin listo para usar'
-          }, '*');
-        }
-        break;
-        
-      case 'saveFoundations':
-        try {
-          const foundations = JSON.parse(message.data);
-          localStorage.setItem('foundations', JSON.stringify(foundations));
-          parent.postMessage({
-            type: 'foundationsSaved',
-            data: 'Foundations guardados correctamente'
-          }, '*');
-        } catch (error) {
-          parent.postMessage({
-            type: 'error',
-            data: 'Error al guardar foundations: ' + error.message
-          }, '*');
-        }
-        break;
+  const message = event.data;
+  
+  switch (message.type) {
+    case 'init':
+      const foundations = localStorage.getItem('foundations');
+      const apiKey = localStorage.getItem('openai_api_key');
+      
+      if (!foundations) {
+        parent.postMessage({ type: 'requestFoundations' }, '*');
+      } else if (!apiKey) {
+        parent.postMessage({ type: 'requestApiKey' }, '*');
+      } else {
+        parent.postMessage({ type: 'ready' }, '*');
+      }
+      break;
+      
+    case 'saveFoundations':
+      try {
+        const foundations = JSON.parse(message.data);
+        localStorage.setItem('foundations', JSON.stringify(foundations));
+        parent.postMessage({ type: 'foundationsSaved' }, '*');
+      } catch {
+        parent.postMessage({ type: 'foundationsError' }, '*');
+      }
+      break;
 
-      case 'saveApiKey':
-        localStorage.setItem('openai_api_key', message.data);
-        parent.postMessage({
-          type: 'apiKeySaved',
-          data: 'API Key guardada correctamente'
-        }, '*');
+    case 'saveApiKey':
+      localStorage.setItem('openai_api_key', message.data);
+      parent.postMessage({ type: 'apiKeySaved' }, '*');
+      break;
+      
+    case 'generateUI':
+      const foundationsData = localStorage.getItem('foundations');
+      const apiKeyData = localStorage.getItem('openai_api_key');
+      
+      if (!foundationsData || !apiKeyData) {
+        parent.postMessage({ type: 'missingData' }, '*');
         break;
-        
-      case 'generateUI':
-        // Procesar la generación de UI
-        const foundationsData = localStorage.getItem('foundations');
-        const apiKeyData = localStorage.getItem('openai_api_key');
-        
-        if (!foundationsData || !apiKeyData) {
-          parent.postMessage({
-            type: 'error',
-            data: 'Faltan datos necesarios (foundations o API Key)'
-          }, '*');
-          break;
-        }
+      }
 
+      try {
         const response = await generateUI({
           apiKey: apiKeyData,
           text: message.data.text,
@@ -108,52 +82,39 @@ window.addEventListener("message", async (event) => {
           type: 'uiGenerated',
           data: response
         }, '*');
-        break;
-
-      case 'error':
-        console.error('Error recibido de Penpot:', message.data);
-        break;
-    }
-  } catch (err) {
-    console.error('Error en el plugin:', err);
-    parent.postMessage({
-      type: 'error',
-      data: err.message
-    }, '*');
+      } catch {
+        parent.postMessage({ type: 'generationError' }, '*');
+      }
+      break;
   }
 });
 
 // Función para generar UI
 async function generateUI(params: GenerateUIParams): Promise<OpenAIResponse> {
-  try {
-    const systemMessage = `Eres un asistente que genera un array JSON de nodos UI usando estos foundations:\n${JSON.stringify(params.foundations)}`;
-    
-    const response = await fetch(OPENAI_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${params.apiKey}`
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: params.text }
-        ],
-        temperature: 0.7
-      })
-    });
+  const systemMessage = `Eres un asistente que genera un array JSON de nodos UI usando estos foundations:\n${JSON.stringify(params.foundations)}`;
+  
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${params.apiKey}`
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: params.text }
+      ],
+      temperature: 0.7
+    })
+  });
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    
-    if (!content) {
-      throw new Error('Sin contenido en la respuesta');
-    }
-
-    return JSON.parse(content) as OpenAIResponse;
-  } catch (error) {
-    console.error('Error generando UI:', error);
-    throw error;
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error();
   }
+
+  return JSON.parse(content) as OpenAIResponse;
 }
