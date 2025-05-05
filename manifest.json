@@ -1,0 +1,16 @@
+{
+    "name": "AI Plugin",
+    "description": "Plugin de IA para generar UI en Penpot",
+    "code": "plugin.js",
+    "icon": "icon.png",
+    "permissions": [
+      "content:read",
+      "content:write",
+      "library:read",
+      "library:write",
+      "user:read",
+      "comment:read",
+      "comment:write",
+      "allow:downloads"
+    ]
+  }
